@@ -3,7 +3,7 @@ import { getSortedStandings } from '../utils/algorithm'
 const TYPE_LABELS = { americano: 'Americano', mexicano: 'Mexicano' }
 const MEDALS = ['🥇', '🥈', '🥉']
 const PODIUM_ORDER = [1, 0, 2] // 2nd, 1st, 3rd visually
-const BAR_CLASSES = ['second', 'first', 'third']
+const BAR_CLASSES = ['first', 'second', 'third']
 
 export default function SummaryScreen({ tournament, standings, roundsPlayed, onHome }) {
   const { type, mode, players } = tournament
