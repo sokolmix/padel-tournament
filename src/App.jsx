@@ -16,20 +16,37 @@ const initialTournament = {
   players: [],
 }
 
+// Wczytaj zapisany stan turnieju — wykonuje się raz przy ładowaniu modułu
+const _saved = (() => {
+  try { return JSON.parse(localStorage.getItem('activeTournament')) || null }
+  catch { return null }
+})()
+
 export default function App() {
-  const [screen, setScreen] = useState('home')
-  const [prevScreen, setPrevScreen] = useState('home')
-  const [tournament, setTournament] = useState(initialTournament)
-  const [rounds, setRounds] = useState([])
-  const [standings, setStandings] = useState({})
-  const [currentRound, setCurrentRound] = useState(null)
-  const [history, setHistory] = useState({})        // partner/opponent/pause rotation
-  const [prevState, setPrevState] = useState(null)  // for undo
-  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark')
+  const [screen, setScreen]           = useState(_saved?.screen       ?? 'home')
+  const [prevScreen, setPrevScreen]   = useState(_saved?.prevScreen   ?? 'home')
+  const [tournament, setTournament]   = useState(_saved?.tournament   ?? initialTournament)
+  const [rounds, setRounds]           = useState(_saved?.rounds       ?? [])
+  const [standings, setStandings]     = useState(_saved?.standings    ?? {})
+  const [currentRound, setCurrentRound] = useState(_saved?.currentRound ?? null)
+  const [history, setHistory]         = useState(_saved?.history      ?? {})
+  const [prevState, setPrevState]     = useState(null)  // undo — nie persistujemy
+  const [theme, setTheme]             = useState(() => localStorage.getItem('theme') || 'dark')
   const [tournamentHistory, setTournamentHistory] = useState(() => {
     try { return JSON.parse(localStorage.getItem('tournamentHistory')) || [] }
     catch { return [] }
   })
+
+  // Zapisuj aktywny turniej przy każdej zmianie stanu
+  useEffect(() => {
+    if (screen === 'home') {
+      localStorage.removeItem('activeTournament')
+    } else {
+      localStorage.setItem('activeTournament', JSON.stringify({
+        screen, prevScreen, tournament, rounds, standings, currentRound, history,
+      }))
+    }
+  }, [screen, prevScreen, tournament, rounds, standings, currentRound, history])
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
@@ -57,7 +74,6 @@ export default function App() {
   }
 
   const finishRound = (completedRound) => {
-    // Zapisz stan przed zmianą (dla undo)
     setPrevState({ round: completedRound, standings, rounds, history })
     const newStandings = calculateStandings(standings, completedRound)
     const newRounds = [...rounds, completedRound]
@@ -83,7 +99,6 @@ export default function App() {
     setStandings(newStandings)
     setRounds((r) => [...r, completedRound])
 
-    // Zapisz turniej do historii
     const unitsPerCourt = tournament.mode === 'pairs' ? 2 : 4
     const entry = {
       id: Date.now(),
@@ -114,6 +129,9 @@ export default function App() {
     setRounds([])
     setStandings({})
     setCurrentRound(null)
+    setHistory({})
+    setPrevState(null)
+    localStorage.removeItem('activeTournament')
     setScreen('home')
   }
 
@@ -124,7 +142,6 @@ export default function App() {
 
   return (
     <div className="app">
-      {/* Sticky gear bar — zawsze w granicach .app, nigdy poza ekranem */}
       {screen !== 'settings' && (
         <div className="gear-bar">
           <button className="gear-btn" onClick={openSettings} title="Ustawienia">
