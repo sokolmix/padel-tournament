@@ -88,18 +88,17 @@ export default function RoundScreen({
 
   // Reload scores when navigating between rounds
   useEffect(() => {
-    const isCurrent = viewingRoundIdx === rounds.length
-    const isPrev = viewingRoundIdx === rounds.length - 1 && rounds.length > 0
-    if (isCurrent) {
+    const idx = Math.min(viewingRoundIdx, rounds.length)
+    if (idx === rounds.length) {
       setScores(
         round.matches.map((m) => ({
           team1Score: m.team1Score ?? '',
           team2Score: m.team2Score ?? '',
         }))
       )
-    } else if (isPrev) {
+    } else {
       setScores(
-        rounds[viewingRoundIdx].matches.map((m) => ({
+        rounds[idx].matches.map((m) => ({
           team1Score: m.team1Score ?? '',
           team2Score: m.team2Score ?? '',
         }))
@@ -111,8 +110,7 @@ export default function RoundScreen({
   // rounds.length maleje zanim useEffect zdąży zaktualizować viewingRoundIdx
   const safeIdx = Math.min(viewingRoundIdx, rounds.length)
   const isCurrentRound = safeIdx === rounds.length
-  const isPrevRound = safeIdx === rounds.length - 1 && rounds.length > 0
-  const isEditable = isCurrentRound || isPrevRound
+  const isEditable = true  // każda runda jest edytowalna
   const displayedRound = isCurrentRound ? round : rounds[safeIdx]
 
   // Standings — zawsze aktualny stan (wszystkie ukończone rundy + bieżąca runda),

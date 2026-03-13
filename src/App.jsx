@@ -30,7 +30,7 @@ export default function App() {
   const [standings, setStandings]     = useState(_saved?.standings    ?? {})
   const [currentRound, setCurrentRound] = useState(_saved?.currentRound ?? null)
   const [history, setHistory]         = useState(_saved?.history      ?? {})
-  const [prevState, setPrevState]     = useState(null)  // undo — nie persistujemy
+  const [undoStack, setUndoStack]     = useState([])  // undo — nie persistujemy
   const [theme, setTheme]             = useState(() => localStorage.getItem('theme') || 'dark')
   const [tournamentHistory, setTournamentHistory] = useState(() => {
     try { return JSON.parse(localStorage.getItem('tournamentHistory')) || [] }
@@ -69,12 +69,12 @@ export default function App() {
     setHistory(round.updatedHistory)
     setRounds([])
     setStandings({})
-    setPrevState(null)
+    setUndoStack([])
     setScreen('round')
   }
 
   const finishRound = (completedRound) => {
-    setPrevState({ round: completedRound, standings, rounds, history })
+    setUndoStack((prev) => [...prev, { round: completedRound, standings, rounds, history }])
     const newStandings = calculateStandings(standings, completedRound)
     const newRounds = [...rounds, completedRound]
     setStandings(newStandings)
@@ -85,12 +85,13 @@ export default function App() {
   }
 
   const undoRound = () => {
-    if (!prevState) return
-    setStandings(prevState.standings)
-    setRounds(prevState.rounds)
-    setHistory(prevState.history)
-    setCurrentRound(prevState.round)
-    setPrevState(null)
+    if (!undoStack.length) return
+    const last = undoStack[undoStack.length - 1]
+    setStandings(last.standings)
+    setRounds(last.rounds)
+    setHistory(last.history)
+    setCurrentRound(last.round)
+    setUndoStack((prev) => prev.slice(0, -1))
   }
 
   const updateCurrentRoundScores = (scores) => {
@@ -200,7 +201,7 @@ export default function App() {
           standings={standings}
           onFinishRound={finishRound}
           onEndTournament={endTournament}
-          canUndo={!!prevState}
+          canUndo={undoStack.length > 0}
           onUndoRound={undoRound}
           onScoresChange={updateCurrentRoundScores}
           onEditPastRound={editPastRound}
