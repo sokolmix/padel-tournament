@@ -145,7 +145,7 @@ export default function RoundScreen({
     setScores(next)
     if (isCurrentRound) {
       onScoresChange?.(next)
-    } else if (isPrevRound) {
+    } else {
       const updatedRound = {
         ...displayedRound,
         matches: displayedRound.matches.map((m, i) => ({
