@@ -26,14 +26,21 @@ jobs:
         with:
           node-version: 20
           cache: npm
+          cache-dependency-path: padel-tournament/package-lock.json
 
-      - run: npm ci
+      - name: Install dependencies
+        run: npm ci
+        working-directory: padel-tournament
 
-      - run: npm run build
+      - name: Build
+        run: npm run build
+        working-directory: padel-tournament
+
+      - uses: actions/configure-pages@v4
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: padel-tournament/dist
 
       - uses: actions/deploy-pages@v4
         id: deployment
