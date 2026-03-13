@@ -110,7 +110,8 @@ export default function RoundScreen({
   // rounds.length maleje zanim useEffect zdąży zaktualizować viewingRoundIdx
   const safeIdx = Math.min(viewingRoundIdx, rounds.length)
   const isCurrentRound = safeIdx === rounds.length
-  const isEditable = true  // każda runda jest edytowalna
+  const isPrevRound = safeIdx === rounds.length - 1 && rounds.length > 0
+  const isEditable = isCurrentRound || isPrevRound
   const displayedRound = isCurrentRound ? round : rounds[safeIdx]
 
   // Standings — zawsze aktualny stan (wszystkie ukończone rundy + bieżąca runda),
