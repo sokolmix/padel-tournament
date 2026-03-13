@@ -286,7 +286,7 @@ export default function RoundScreen({
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <span className="type-badge">{isPairs ? 'W Parach' : 'Indywidualnie'}</span>
-          {canUndo && isCurrentRound && (
+          {canUndo && (
             <button className="undo-btn" onClick={onUndoRound} title="Cofnij rundę">
               ↩ Cofnij
             </button>
