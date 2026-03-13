@@ -107,10 +107,13 @@ export default function RoundScreen({
     }
   }, [viewingRoundIdx]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const isCurrentRound = viewingRoundIdx === rounds.length
-  const isPrevRound = viewingRoundIdx === rounds.length - 1 && rounds.length > 0
+  // Clamp na wypadek chwilowej niespójności po cofnięciu rundy:
+  // rounds.length maleje zanim useEffect zdąży zaktualizować viewingRoundIdx
+  const safeIdx = Math.min(viewingRoundIdx, rounds.length)
+  const isCurrentRound = safeIdx === rounds.length
+  const isPrevRound = safeIdx === rounds.length - 1 && rounds.length > 0
   const isEditable = isCurrentRound || isPrevRound
-  const displayedRound = isCurrentRound ? round : rounds[viewingRoundIdx]
+  const displayedRound = isCurrentRound ? round : rounds[safeIdx]
 
   // Standings for the viewed round
   const displayedStandings = useMemo(() => {
@@ -130,16 +133,16 @@ export default function RoundScreen({
       return calculateStandings(standings, { ...round, matches: validMatches })
     }
     let s = {}
-    for (let i = 0; i <= viewingRoundIdx; i++) {
+    for (let i = 0; i <= safeIdx; i++) {
       s = calculateStandings(s, rounds[i])
     }
     return s
-  }, [viewingRoundIdx, isCurrentRound, standings, rounds, scores, round, pointsPerRound])
+  }, [safeIdx, isCurrentRound, standings, rounds, scores, round, pointsPerRound])
 
   const sortedStandings = getSortedStandings(players, displayedStandings, mode)
 
-  const canGoPrev = viewingRoundIdx > 0
-  const canGoNext = viewingRoundIdx < rounds.length
+  const canGoPrev = safeIdx > 0
+  const canGoNext = safeIdx < rounds.length
 
   const handlePickScore = (matchIdx, side, value) => {
     const other = side === 'team1Score' ? 'team2Score' : 'team1Score'
@@ -162,7 +165,7 @@ export default function RoundScreen({
           team2Score: next[i].team2Score,
         })),
       }
-      onEditPastRound?.(viewingRoundIdx, updatedRound)
+      onEditPastRound?.(safeIdx, updatedRound)
     }
     setPicker(null)
   }
