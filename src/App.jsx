@@ -152,7 +152,7 @@ export default function App() {
     setStandings({})
     setCurrentRound(null)
     setHistory({})
-    setPrevState(null)
+    setUndoStack([])
     localStorage.removeItem('activeTournament')
     setScreen('home')
   }
