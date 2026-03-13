@@ -115,29 +115,20 @@ export default function RoundScreen({
   const isEditable = isCurrentRound || isPrevRound
   const displayedRound = isCurrentRound ? round : rounds[safeIdx]
 
-  // Standings for the viewed round
+  // Standings — zawsze aktualny stan (wszystkie ukończone rundy + bieżąca runda),
+  // niezależnie od tego którą rundę oglądamy
   const displayedStandings = useMemo(() => {
-    if (isCurrentRound) {
-      const validMatches = round.matches
-        .map((m, i) => {
-          const s = scores[i]
-          const t1 = parseInt(s.team1Score)
-          const t2 = parseInt(s.team2Score)
-          if (!isNaN(t1) && !isNaN(t2) && t1 + t2 === pointsPerRound) {
-            return { ...m, team1Score: s.team1Score, team2Score: s.team2Score }
-          }
-          return null
-        })
-        .filter(Boolean)
-      if (validMatches.length === 0 && round.pausing.length === 0) return standings
-      return calculateStandings(standings, { ...round, matches: validMatches })
-    }
-    let s = {}
-    for (let i = 0; i <= safeIdx; i++) {
-      s = calculateStandings(s, rounds[i])
-    }
-    return s
-  }, [safeIdx, isCurrentRound, standings, rounds, scores, round, pointsPerRound])
+    const validMatches = round.matches
+      .map((m) => {
+        const t1 = parseInt(m.team1Score)
+        const t2 = parseInt(m.team2Score)
+        if (!isNaN(t1) && !isNaN(t2) && t1 + t2 === pointsPerRound) return m
+        return null
+      })
+      .filter(Boolean)
+    if (validMatches.length === 0 && round.pausing.length === 0) return standings
+    return calculateStandings(standings, { ...round, matches: validMatches })
+  }, [standings, round, pointsPerRound])
 
   const sortedStandings = getSortedStandings(players, displayedStandings, mode)
 
