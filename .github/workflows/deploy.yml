@@ -29,17 +29,15 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-        working-directory: padel-tournament
 
       - name: Build
         run: npm run build
-        working-directory: padel-tournament
 
       - uses: actions/configure-pages@v4
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: padel-tournament/dist
+          path: dist
 
       - uses: actions/deploy-pages@v4
         id: deployment
