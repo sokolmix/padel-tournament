@@ -93,6 +93,27 @@ export default function App() {
     setPrevState(null)
   }
 
+  const updateCurrentRoundScores = (scores) => {
+    setCurrentRound((prev) => ({
+      ...prev,
+      matches: prev.matches.map((m, i) => ({
+        ...m,
+        team1Score: scores[i]?.team1Score ?? m.team1Score,
+        team2Score: scores[i]?.team2Score ?? m.team2Score,
+      })),
+    }))
+  }
+
+  const editPastRound = (roundIdx, updatedRound) => {
+    const newRounds = rounds.map((r, i) => (i === roundIdx ? updatedRound : r))
+    let newStandings = {}
+    for (const r of newRounds) {
+      newStandings = calculateStandings(newStandings, r)
+    }
+    setRounds(newRounds)
+    setStandings(newStandings)
+  }
+
   const endTournament = (completedRound) => {
     const newStandings = calculateStandings(standings, completedRound)
     const finalRoundsCount = rounds.length + 1
@@ -174,12 +195,15 @@ export default function App() {
         <RoundScreen
           tournament={tournament}
           round={currentRound}
+          rounds={rounds}
           roundNumber={rounds.length + 1}
           standings={standings}
           onFinishRound={finishRound}
           onEndTournament={endTournament}
           canUndo={!!prevState}
           onUndoRound={undoRound}
+          onScoresChange={updateCurrentRoundScores}
+          onEditPastRound={editPastRound}
         />
       )}
       {screen === 'summary' && (

@@ -248,9 +248,12 @@ export function generateRound(tournament, standings, roundNumber, history = {}) 
       // ── Ścieżka Whist: matematycznie idealne przypisanie ────────────────
       const { cycleLen, schedule, zCyclic } = whistConfig
 
-      // Inicjalizacja lub reset po zakończeniu cyklu
-      if (!whistOrder || whistIndex >= cycleLen) {
+      // Inicjalizacja tylko przy pierwszej rundzie
+      if (!whistOrder) {
         newWhistOrder = shuffle([...players])
+      }
+      // Reset indeksu po zakończeniu cyklu (bez ponownego tasowania)
+      if (whistIndex >= cycleLen) {
         newWhistIndex = 0
       }
 
@@ -266,31 +269,51 @@ export function generateRound(tournament, standings, roundNumber, history = {}) 
     } else {
       // ── Ścieżka Berger + greedy: pauzujący lub niestandardowa liczba ────
 
-      // 1. Wyznacz pauzujących (fair-pause queue)
-      if (numToPause > 0) {
-        const sorted = [...players].sort((a, b) => {
-          const ca = pauseHistory[a.id]?.count ?? 0
-          const cb = pauseHistory[b.id]?.count ?? 0
-          if (ca !== cb) return ca - cb
-          const la = pauseHistory[a.id]?.lastPausedRound ?? -999
-          const lb = pauseHistory[b.id]?.lastPausedRound ?? -999
-          return la - lb
-        })
-        pausing = sorted.slice(0, numToPause)
-        pausing.forEach(p => {
-          newPauseHistory[p.id] = {
-            count: (newPauseHistory[p.id]?.count ?? 0) + 1,
-            lastPausedRound: roundNumber,
-          }
-        })
-      }
-
-      // 2. Berger sequence → greedy Whist
+      // 1. Inicjalizuj kolejność Bergera (tylko raz)
       if (!bergerOrder) {
         bergerOrder = initBergerOrder(players)
         bergerIndex = 0
       }
+      newBergerOrder = bergerOrder  // utrwal w historii (wcześniej gubione)
       const seq = bergerSequence(bergerOrder, bergerIndex)
+
+      // 2. Wyznacz pauzujących
+      if (numToPause > 0) {
+        // Gdy jest dokładnie 1 pauza i BYE w sekwencji — użyj partnera BYE.
+        // Berger gwarantuje że każdy trafi obok BYE dokładnie 1× na cykl,
+        // więc pauzy są równe ORAZ partnerzy unikalni w całym cyklu.
+        const byePos = seq.findIndex(p => p === null)
+        if (byePos !== -1 && numToPause === 1) {
+          const n = seq.length
+          const pausingPlayer = seq[n - 1 - byePos]
+          if (pausingPlayer) {
+            pausing = [pausingPlayer]
+            newPauseHistory[pausingPlayer.id] = {
+              count: (newPauseHistory[pausingPlayer.id]?.count ?? 0) + 1,
+              lastPausedRound: roundNumber,
+            }
+          }
+        } else {
+          // Fallback: fair-pause queue (np. gdy numToPause > 1)
+          const sorted = [...players].sort((a, b) => {
+            const ca = pauseHistory[a.id]?.count ?? 0
+            const cb = pauseHistory[b.id]?.count ?? 0
+            if (ca !== cb) return ca - cb
+            const la = pauseHistory[a.id]?.lastPausedRound ?? -999
+            const lb = pauseHistory[b.id]?.lastPausedRound ?? -999
+            return la - lb
+          })
+          pausing = sorted.slice(0, numToPause)
+          pausing.forEach(p => {
+            newPauseHistory[p.id] = {
+              count: (newPauseHistory[p.id]?.count ?? 0) + 1,
+              lastPausedRound: roundNumber,
+            }
+          })
+        }
+      }
+
+      // 3. Usuń BYE i pauzujących, zbuduj mecze
       const realSeq = seq.filter(p => p !== null)
       const pausingIds = new Set(pausing.map(p => p.id))
       const playingSeq = realSeq.filter(p => !pausingIds.has(p.id))
@@ -299,8 +322,8 @@ export function generateRound(tournament, standings, roundNumber, history = {}) 
 
       const cycleLen = bergerOrder.length - 1
       newBergerIndex = bergerIndex + 1
+      // Reset indeksu po zakończeniu cyklu (bez ponownego tasowania)
       if (newBergerIndex >= cycleLen) {
-        newBergerOrder = initBergerOrder(players)
         newBergerIndex = 0
       }
     }

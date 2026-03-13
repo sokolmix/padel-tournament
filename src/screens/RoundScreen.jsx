@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { getDisplayName, getSortedStandings } from '../utils/algorithm'
+import { useState, useMemo, useEffect } from 'react'
+import { getDisplayName, getSortedStandings, calculateStandings } from '../utils/algorithm'
 
 const TYPE_LABELS = { americano: 'Americano', mexicano: 'Mexicano' }
 
@@ -52,17 +52,19 @@ function ConfirmModal({ onConfirm, onCancel }) {
 export default function RoundScreen({
   tournament,
   round,
+  rounds,
   roundNumber,
   standings,
   onFinishRound,
   onEndTournament,
   canUndo,
   onUndoRound,
+  onScoresChange,
+  onEditPastRound,
 }) {
   const { type, mode, players, pointsPerRound } = tournament
   const isPairs = mode === 'pairs'
 
-  // Initialize scores from round if they exist (undo case), otherwise empty
   const [scores, setScores] = useState(() =>
     round.matches.map((m) => ({
       team1Score: m.team1Score ?? '',
@@ -71,29 +73,97 @@ export default function RoundScreen({
   )
   const [picker, setPicker] = useState(null)
   const [confirmEnd, setConfirmEnd] = useState(false)
+  const [viewingRoundIdx, setViewingRoundIdx] = useState(rounds.length)
 
-  // Reset scores when round changes (e.g. after undo or next round)
-  const [lastRoundNum, setLastRoundNum] = useState(roundNumber)
-  if (roundNumber !== lastRoundNum) {
+  // Reset when a new round starts or undo happens
+  useEffect(() => {
     setScores(
       round.matches.map((m) => ({
         team1Score: m.team1Score ?? '',
         team2Score: m.team2Score ?? '',
       }))
     )
-    setLastRoundNum(roundNumber)
-  }
+    setViewingRoundIdx(rounds.length)
+  }, [roundNumber]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reload scores when navigating between rounds
+  useEffect(() => {
+    const isCurrent = viewingRoundIdx === rounds.length
+    const isPrev = viewingRoundIdx === rounds.length - 1 && rounds.length > 0
+    if (isCurrent) {
+      setScores(
+        round.matches.map((m) => ({
+          team1Score: m.team1Score ?? '',
+          team2Score: m.team2Score ?? '',
+        }))
+      )
+    } else if (isPrev) {
+      setScores(
+        rounds[viewingRoundIdx].matches.map((m) => ({
+          team1Score: m.team1Score ?? '',
+          team2Score: m.team2Score ?? '',
+        }))
+      )
+    }
+  }, [viewingRoundIdx]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const isCurrentRound = viewingRoundIdx === rounds.length
+  const isPrevRound = viewingRoundIdx === rounds.length - 1 && rounds.length > 0
+  const isEditable = isCurrentRound || isPrevRound
+  const displayedRound = isCurrentRound ? round : rounds[viewingRoundIdx]
+
+  // Standings for the viewed round
+  const displayedStandings = useMemo(() => {
+    if (isCurrentRound) {
+      const validMatches = round.matches
+        .map((m, i) => {
+          const s = scores[i]
+          const t1 = parseInt(s.team1Score)
+          const t2 = parseInt(s.team2Score)
+          if (!isNaN(t1) && !isNaN(t2) && t1 + t2 === pointsPerRound) {
+            return { ...m, team1Score: s.team1Score, team2Score: s.team2Score }
+          }
+          return null
+        })
+        .filter(Boolean)
+      if (validMatches.length === 0 && round.pausing.length === 0) return standings
+      return calculateStandings(standings, { ...round, matches: validMatches })
+    }
+    let s = {}
+    for (let i = 0; i <= viewingRoundIdx; i++) {
+      s = calculateStandings(s, rounds[i])
+    }
+    return s
+  }, [viewingRoundIdx, isCurrentRound, standings, rounds, scores, round, pointsPerRound])
+
+  const sortedStandings = getSortedStandings(players, displayedStandings, mode)
+
+  const canGoPrev = viewingRoundIdx > 0
+  const canGoNext = viewingRoundIdx < rounds.length
 
   const handlePickScore = (matchIdx, side, value) => {
     const other = side === 'team1Score' ? 'team2Score' : 'team1Score'
-    setScores((prev) => {
-      const next = [...prev]
-      const updated = { ...next[matchIdx], [side]: String(value) }
+    const next = scores.map((s, idx) => {
+      if (idx !== matchIdx) return s
+      const updated = { ...s, [side]: String(value) }
       const otherVal = pointsPerRound - value
       if (otherVal >= 0) updated[other] = String(otherVal)
-      next[matchIdx] = updated
-      return next
+      return updated
     })
+    setScores(next)
+    if (isCurrentRound) {
+      onScoresChange?.(next)
+    } else if (isPrevRound) {
+      const updatedRound = {
+        ...displayedRound,
+        matches: displayedRound.matches.map((m, i) => ({
+          ...m,
+          team1Score: next[i].team1Score,
+          team2Score: next[i].team2Score,
+        })),
+      }
+      onEditPastRound?.(viewingRoundIdx, updatedRound)
+    }
     setPicker(null)
   }
 
@@ -107,8 +177,16 @@ export default function RoundScreen({
   const isMatchFilled = (score) =>
     score.team1Score !== '' && score.team2Score !== ''
 
-  const allValid = scores.every(isMatchValid)
-  const allFilled = scores.every(isMatchFilled)
+  // For editable rounds use local scores state; for read-only use stored scores
+  const displayedScores = isEditable
+    ? scores
+    : displayedRound.matches.map((m) => ({
+        team1Score: m.team1Score ?? '',
+        team2Score: m.team2Score ?? '',
+      }))
+
+  const allValid = displayedScores.every(isMatchValid)
+  const allFilled = displayedScores.every(isMatchFilled)
 
   const buildCompletedRound = () => ({
     ...round,
@@ -119,11 +197,8 @@ export default function RoundScreen({
     })),
   })
 
-  const sortedStandings = getSortedStandings(players, standings, mode)
-
-
   const renderCourtCard = (match, i) => {
-    const score = scores[i]
+    const score = displayedScores[i]
     const filled = isMatchFilled(score)
     const valid = isMatchValid(score)
     return (
@@ -144,14 +219,16 @@ export default function RoundScreen({
             <div className="score-inputs">
               <button
                 className={`score-btn${score.team1Score !== '' ? (valid ? ' score-valid' : ' score-filled') : ''}`}
-                onClick={() => setPicker({ matchIdx: i, side: 'team1Score' })}
+                onClick={isEditable ? () => setPicker({ matchIdx: i, side: 'team1Score' }) : undefined}
+                disabled={!isEditable}
               >
                 {score.team1Score !== '' ? score.team1Score : '—'}
               </button>
               <span className="score-sep">:</span>
               <button
                 className={`score-btn${score.team2Score !== '' ? (valid ? ' score-valid' : ' score-filled') : ''}`}
-                onClick={() => setPicker({ matchIdx: i, side: 'team2Score' })}
+                onClick={isEditable ? () => setPicker({ matchIdx: i, side: 'team2Score' }) : undefined}
+                disabled={!isEditable}
               >
                 {score.team2Score !== '' ? score.team2Score : '—'}
               </button>
@@ -192,12 +269,24 @@ export default function RoundScreen({
       {/* Header */}
       <div className="round-header">
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <span className="round-badge">RUNDA {roundNumber}</span>
+          <button
+            className="nav-btn"
+            onClick={() => setViewingRoundIdx((v) => v - 1)}
+            disabled={!canGoPrev}
+            title="Poprzednia runda"
+          >←</button>
+          <span className="round-badge">RUNDA {displayedRound.roundNumber}</span>
           <span className="type-badge">{TYPE_LABELS[type]}</span>
+          <button
+            className="nav-btn"
+            onClick={() => setViewingRoundIdx((v) => v + 1)}
+            disabled={!canGoNext}
+            title="Następna runda"
+          >→</button>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <span className="type-badge">{isPairs ? 'W Parach' : 'Indywidualnie'}</span>
-          {canUndo && (
+          {canUndo && isCurrentRound && (
             <button className="undo-btn" onClick={onUndoRound} title="Cofnij rundę">
               ↩ Cofnij
             </button>
@@ -206,11 +295,11 @@ export default function RoundScreen({
       </div>
 
       {/* Pause banner */}
-      {round.pausing.length > 0 && (
+      {displayedRound.pausing.length > 0 && (
         <div className="pause-banner">
-          ⏸ Pauzuje ({round.pausePoints} pkt):{' '}
+          ⏸ Pauzuje ({displayedRound.pausePoints} pkt):{' '}
           <strong>
-            {round.pausing.map((p) => getDisplayName(p, mode)).join(', ')}
+            {displayedRound.pausing.map((p) => getDisplayName(p, mode)).join(', ')}
           </strong>
         </div>
       )}
@@ -219,33 +308,36 @@ export default function RoundScreen({
       <div className="round-layout">
         {/* Courts */}
         <div className="courts-list">
-          {round.matches.map((match, i) => renderCourtCard(match, i))}
+          {displayedRound.matches.map((match, i) => renderCourtCard(match, i))}
 
           {/* Action buttons */}
           <div className="action-bar">
             <button
-              className="btn btn-large"
+              className={`btn btn-large${!isCurrentRound ? ' btn-muted' : ''}`}
               onClick={() => onFinishRound(buildCompletedRound())}
-              disabled={!allValid}
+              disabled={!isCurrentRound || !allValid}
             >
               Następna runda →
             </button>
             <button
-              className="btn btn-large btn-danger"
+              className={`btn btn-large btn-danger${!isCurrentRound ? ' btn-muted' : ''}`}
               onClick={() => setConfirmEnd(true)}
-              disabled={!allValid}
+              disabled={!isCurrentRound || !allValid}
             >
               Zakończ turniej
             </button>
           </div>
 
-          {!allFilled && (
+          {isCurrentRound && !allFilled && (
             <div className="hint">Kliknij wynik, aby uzupełnić</div>
           )}
-          {allFilled && !allValid && (
+          {isEditable && allFilled && !allValid && (
             <div className="hint" style={{ color: 'var(--danger)' }}>
               Suma punktów na każdym korcie musi wynosić {pointsPerRound}
             </div>
+          )}
+          {!isEditable && (
+            <div className="hint">Przeglądasz archiwalną rundę — tylko bieżąca i poprzednia są edytowalne</div>
           )}
         </div>
 
