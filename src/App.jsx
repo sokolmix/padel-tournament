@@ -31,7 +31,7 @@ export default function App() {
   const [currentRound, setCurrentRound] = useState(_saved?.currentRound ?? null)
   const [history, setHistory]         = useState(_saved?.history      ?? {})
   const [undoStack, setUndoStack]     = useState([])    // undo — nie persistujemy
-  const [theme, setTheme]             = useState(() => localStorage.getItem('theme') || 'dark')
+  const [theme, setTheme]             = useState(() => localStorage.getItem('theme') || 'light')
   const [tournamentHistory, setTournamentHistory] = useState(() => {
     try { return JSON.parse(localStorage.getItem('tournamentHistory')) || [] }
     catch { return [] }
